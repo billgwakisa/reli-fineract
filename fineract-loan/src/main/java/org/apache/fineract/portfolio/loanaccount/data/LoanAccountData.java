@@ -269,6 +269,7 @@ public class LoanAccountData {
     private Boolean enableInstallmentLevelDelinquency;
     private LocalDate lastClosedBusinessDate;
     private Boolean chargedOff;
+    private Boolean allowFullTermForTranche;
 
     private Boolean enableDownPayment;
     private BigDecimal disbursedAmountPercentageForDownPayment;
@@ -288,6 +289,7 @@ public class LoanAccountData {
     private StringEnumOptionData buyDownFeeCalculationType;
     private StringEnumOptionData buyDownFeeStrategy;
     private StringEnumOptionData buyDownFeeIncomeType;
+    private Boolean merchantBuyDownFee;
 
     public static LoanAccountData importInstanceIndividual(EnumOptionData loanTypeEnumOption, Long clientId, Long productId,
             Long loanOfficerId, LocalDate submittedOnDate, Long fundId, BigDecimal principal, Integer numberOfRepayments,
@@ -461,7 +463,7 @@ public class LoanAccountData {
             final EnumOptionData amortizationType, final BigDecimal interestRatePerPeriod, final EnumOptionData interestRateFrequencyType,
             final BigDecimal annualInterestRate, final EnumOptionData interestType, final boolean isFloatingInterestRate,
             final BigDecimal interestRateDifferential, final EnumOptionData interestCalculationPeriodType,
-            Boolean allowPartialPeriodInterestCalcualtion, final LocalDate expectedFirstRepaymentOnDate,
+            Boolean allowPartialPeriodInterestCalculation, final LocalDate expectedFirstRepaymentOnDate,
             final Integer graceOnPrincipalPayment, final Integer recurringMoratoriumOnPrincipalPeriods,
             final Integer graceOnInterestPayment, final Integer graceOnInterestCharged, final LocalDate interestChargedFromDate,
             final LoanApplicationTimelineData timeline, final LoanSummaryData loanSummary,
@@ -479,11 +481,12 @@ public class LoanAccountData {
             final BigDecimal disbursedAmountPercentageForDownPayment, final boolean enableAutoRepaymentForDownPayment,
             final boolean enableInstallmentLevelDelinquency, final EnumOptionData loanScheduleType,
             final EnumOptionData loanScheduleProcessingType, final Integer fixedLength, final StringEnumOptionData chargeOffBehaviour,
-            final boolean isInterestRecognitionOnDisbursementDate, final StringEnumOptionData daysInYearCustomStrategy,
-            final boolean enableIncomeCapitalization, final StringEnumOptionData capitalizedIncomeCalculationType,
-            final StringEnumOptionData capitalizedIncomeStrategy, StringEnumOptionData capitalizedIncomeType,
-            final boolean enableBuyDownFee, final StringEnumOptionData buyDownFeeCalculationType,
-            final StringEnumOptionData buyDownFeeStrategy, final StringEnumOptionData buyDownFeeIncomeType) {
+            final boolean isInterestRecognitionOnDisbursementDate, final boolean allowFullTermForTranche,
+            final StringEnumOptionData daysInYearCustomStrategy, final boolean enableIncomeCapitalization,
+            final StringEnumOptionData capitalizedIncomeCalculationType, final StringEnumOptionData capitalizedIncomeStrategy,
+            StringEnumOptionData capitalizedIncomeType, final boolean enableBuyDownFee,
+            final StringEnumOptionData buyDownFeeCalculationType, final StringEnumOptionData buyDownFeeStrategy,
+            final StringEnumOptionData buyDownFeeIncomeType, final boolean merchantBuyDownFee) {
 
         final CollectionData delinquent = CollectionData.template();
 
@@ -505,7 +508,7 @@ public class LoanAccountData {
                 .setInterestRateFrequencyType(interestRateFrequencyType).setAnnualInterestRate(annualInterestRate)
                 .setInterestType(interestType).setFloatingInterestRate(isFloatingInterestRate)
                 .setInterestRateDifferential(interestRateDifferential).setInterestCalculationPeriodType(interestCalculationPeriodType)
-                .setAllowPartialPeriodInterestCalculation(allowPartialPeriodInterestCalcualtion)
+                .setAllowPartialPeriodInterestCalculation(allowPartialPeriodInterestCalculation)
                 .setExpectedFirstRepaymentOnDate(expectedFirstRepaymentOnDate).setGraceOnPrincipalPayment(graceOnPrincipalPayment)
                 .setRecurringMoratoriumOnPrincipalPeriods(recurringMoratoriumOnPrincipalPeriods)
                 .setGraceOnInterestPayment(graceOnInterestPayment).setGraceOnInterestCharged(graceOnInterestCharged)
@@ -529,11 +532,13 @@ public class LoanAccountData {
                 .setEnableInstallmentLevelDelinquency(enableInstallmentLevelDelinquency).setLoanScheduleType(loanScheduleType)
                 .setLoanScheduleProcessingType(loanScheduleProcessingType).setFixedLength(fixedLength)
                 .setChargeOffBehaviour(chargeOffBehaviour).setInterestRecognitionOnDisbursementDate(isInterestRecognitionOnDisbursementDate)
-                .setDaysInYearCustomStrategy(daysInYearCustomStrategy).setEnableIncomeCapitalization(enableIncomeCapitalization)
+                .setAllowFullTermForTranche(allowFullTermForTranche).setDaysInYearCustomStrategy(daysInYearCustomStrategy)
+                .setEnableIncomeCapitalization(enableIncomeCapitalization)
                 .setCapitalizedIncomeCalculationType(capitalizedIncomeCalculationType)
                 .setCapitalizedIncomeStrategy(capitalizedIncomeStrategy).setCapitalizedIncomeType(capitalizedIncomeType)
                 .setEnableBuyDownFee(enableBuyDownFee).setBuyDownFeeCalculationType(buyDownFeeCalculationType)
-                .setBuyDownFeeStrategy(buyDownFeeStrategy).setBuyDownFeeIncomeType(buyDownFeeIncomeType);
+                .setBuyDownFeeStrategy(buyDownFeeStrategy).setBuyDownFeeIncomeType(buyDownFeeIncomeType)
+                .setMerchantBuyDownFee(merchantBuyDownFee);
     }
 
     /*

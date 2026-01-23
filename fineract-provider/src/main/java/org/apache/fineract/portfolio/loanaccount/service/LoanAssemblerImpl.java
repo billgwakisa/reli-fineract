@@ -248,6 +248,12 @@ public class LoanAssemblerImpl implements LoanAssembler {
             isEnableInstallmentLevelDelinquency = loanProduct.isEnableInstallmentLevelDelinquency();
         }
 
+        Boolean allowFullTermForTranche = this.fromApiJsonHelper
+                .extractBooleanNamed(LoanProductConstants.ALLOW_FULL_TERM_FOR_TRANCHE_PARAM_NAME, element);
+        if (allowFullTermForTranche == null) {
+            allowFullTermForTranche = loanProduct.isAllowFullTermForTranche();
+        }
+
         final boolean isHolidayEnabled = this.configurationDomainService.isRescheduleRepaymentsOnHolidaysEnabled();
         Long officeId = client != null ? client.getOffice().getId() : group.getOffice().getId();
         final List<Holiday> holidays = this.holidayRepository.findByOfficeIdAndGreaterThanDate(officeId,
@@ -262,19 +268,19 @@ public class LoanAssemblerImpl implements LoanAssembler {
                     syncDisbursementWithMeeting, fixedEmiAmount, disbursementDetails, maxOutstandingLoanBalance,
                     createStandingInstructionAtDisbursement, isFloatingInterestRate, interestRateDifferential, rates,
                     fixedPrincipalPercentagePerInstallment, externalId, loanApplicationTerms, isEnableInstallmentLevelDelinquency,
-                    submittedOnDate);
+                    submittedOnDate, allowFullTermForTranche);
         } else if (group != null) {
             loanApplication = Loan.newGroupLoanApplication(accountNo, group, loanAccountType, loanProduct, fund, loanOfficer, loanPurpose,
                     transactionProcessingStrategy, loanProductRelatedDetail, loanCharges, syncDisbursementWithMeeting, fixedEmiAmount,
                     disbursementDetails, maxOutstandingLoanBalance, createStandingInstructionAtDisbursement, isFloatingInterestRate,
                     interestRateDifferential, rates, fixedPrincipalPercentagePerInstallment, externalId, loanApplicationTerms,
-                    isEnableInstallmentLevelDelinquency, submittedOnDate);
+                    isEnableInstallmentLevelDelinquency, submittedOnDate, allowFullTermForTranche);
         } else if (client != null) {
             loanApplication = Loan.newIndividualLoanApplication(accountNo, client, loanAccountType, loanProduct, fund, loanOfficer,
                     loanPurpose, transactionProcessingStrategy, loanProductRelatedDetail, loanCharges, collateral, fixedEmiAmount,
                     disbursementDetails, maxOutstandingLoanBalance, createStandingInstructionAtDisbursement, isFloatingInterestRate,
                     interestRateDifferential, rates, fixedPrincipalPercentagePerInstallment, externalId, loanApplicationTerms,
-                    isEnableInstallmentLevelDelinquency, submittedOnDate);
+                    isEnableInstallmentLevelDelinquency, submittedOnDate, allowFullTermForTranche);
         } else {
             throw new IllegalStateException("No loan application exists for either a client or group (or both).");
         }
@@ -285,7 +291,7 @@ public class LoanAssemblerImpl implements LoanAssembler {
         // TODO: review
         loanChargeService.recalculateAllCharges(loanApplication);
         topUpLoanConfiguration(element, loanApplication);
-        loanAccrualsProcessingService.reprocessExistingAccruals(loanApplication);
+        loanAccrualsProcessingService.reprocessExistingAccruals(loanApplication, false);
         return loanApplication;
     }
 
@@ -843,6 +849,14 @@ public class LoanAssemblerImpl implements LoanAssembler {
             loan.updateEnableInstallmentLevelDelinquency(enableInstallmentLevelDelinquency);
         }
 
+        // update allow full term for tranche
+        if (command.isChangeInBooleanParameterNamed(LoanProductConstants.ALLOW_FULL_TERM_FOR_TRANCHE_PARAM_NAME,
+                loan.isAllowFullTermForTranche())) {
+            final Boolean allowFullTermForTranche = command
+                    .booleanObjectValueOfParameterNamed(LoanProductConstants.ALLOW_FULL_TERM_FOR_TRANCHE_PARAM_NAME);
+            loan.updateAllowFullTermForTranche(allowFullTermForTranche);
+        }
+
         if (changes.containsKey("recalculateLoanSchedule")) {
             changes.remove("recalculateLoanSchedule");
 
@@ -851,7 +865,7 @@ public class LoanAssemblerImpl implements LoanAssembler {
 
             final LoanScheduleModel loanScheduleModel = this.calculationPlatformService.calculateLoanSchedule(query, false);
             loanSchedule.updateLoanSchedule(loan, loanScheduleModel);
-            loanAccrualsProcessingService.reprocessExistingAccruals(loan);
+            loanAccrualsProcessingService.reprocessExistingAccruals(loan, false);
             loanChargeService.recalculateAllCharges(loan);
         }
 

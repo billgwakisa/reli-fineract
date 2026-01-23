@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.fineract.infrastructure.codes.domain.CodeValue;
 import org.apache.fineract.infrastructure.core.domain.AbstractAuditableWithUTCDateTimeCustom;
 import org.apache.fineract.infrastructure.core.domain.ExternalId;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
@@ -47,6 +48,7 @@ import org.apache.fineract.organisation.monetary.domain.MonetaryCurrency;
 import org.apache.fineract.organisation.monetary.domain.Money;
 import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.portfolio.loanaccount.domain.reaging.LoanReAgeParameter;
+import org.apache.fineract.portfolio.loanaccount.domain.reamortization.LoanReAmortizationParameter;
 import org.apache.fineract.portfolio.loanaccount.loanschedule.domain.LoanScheduleType;
 import org.apache.fineract.portfolio.paymentdetail.domain.PaymentDetail;
 
@@ -144,6 +146,15 @@ public class LoanTransaction extends AbstractAuditableWithUTCDateTimeCustom<Long
     @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY, mappedBy = "loanTransaction")
     private LoanReAgeParameter loanReAgeParameter;
 
+    @Setter
+    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY, mappedBy = "loanTransaction")
+    private LoanReAmortizationParameter loanReAmortizationParameter;
+
+    @Setter
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "classification_cv_id")
+    private CodeValue classification;
+
     protected LoanTransaction() {}
 
     public static LoanTransaction incomePosting(final Loan loan, final Office office, final LocalDate dateOf, final BigDecimal amount,
@@ -193,6 +204,11 @@ public class LoanTransaction extends AbstractAuditableWithUTCDateTimeCustom<Long
     public static LoanTransaction interestRefund(final Loan loan, final BigDecimal amount, final LocalDate date,
             final ExternalId externalId) {
         return new LoanTransaction(loan, loan.getOffice(), LoanTransactionType.INTEREST_REFUND, null, amount, date, externalId);
+    }
+
+    public static LoanTransaction interestRefund(final Loan loan, final BigDecimal amount, final LocalDate date,
+            final PaymentDetail paymentDetail, final ExternalId externalId) {
+        return new LoanTransaction(loan, loan.getOffice(), LoanTransactionType.INTEREST_REFUND, paymentDetail, amount, date, externalId);
     }
 
     public static LoanTransaction chargeAdjustment(final Loan loan, final BigDecimal amount, final LocalDate transactionDate,
@@ -307,6 +323,10 @@ public class LoanTransaction extends AbstractAuditableWithUTCDateTimeCustom<Long
         if (LoanTransactionType.REAGE.equals(loanTransaction.getTypeOf())) {
             newTransaction.setLoanReAgeParameter(loanTransaction.getLoanReAgeParameter().getCopy(newTransaction));
         }
+        if (LoanTransactionType.REAMORTIZE.equals(loanTransaction.getTypeOf())) {
+            newTransaction.setLoanReAmortizationParameter(loanTransaction.getLoanReAmortizationParameter().getCopy(newTransaction));
+        }
+        newTransaction.setClassification(loanTransaction.getClassification());
         return newTransaction;
     }
 
@@ -335,7 +355,7 @@ public class LoanTransaction extends AbstractAuditableWithUTCDateTimeCustom<Long
     public static LoanTransaction buyDownFeeAdjustment(final Loan loan, final Money amount, final PaymentDetail paymentDetail,
             final LocalDate transactionDate, final ExternalId externalId) {
         return new LoanTransaction(loan, loan.getOffice(), LoanTransactionType.BUY_DOWN_FEE_ADJUSTMENT, transactionDate, amount.getAmount(),
-                amount.getAmount(), null, null, null, null, false, paymentDetail, externalId);
+                null, null, null, null, null, false, paymentDetail, externalId);
     }
 
     public static LoanTransaction capitalizedIncomeAmortizationAdjustment(final Loan loan, final Money amount,
@@ -702,8 +722,16 @@ public class LoanTransaction extends AbstractAuditableWithUTCDateTimeCustom<Long
         return LoanTransactionType.CAPITALIZED_INCOME.equals(getTypeOf()) && isNotReversed();
     }
 
+    public boolean isDeferredIncome() {
+        return isCapitalizedIncome() || isBuyDownFee();
+    }
+
     public boolean isCapitalizedIncomeAmortization() {
         return LoanTransactionType.CAPITALIZED_INCOME_AMORTIZATION.equals(getTypeOf()) && isNotReversed();
+    }
+
+    public boolean isCapitalizedIncomeAmortizationAdjustment() {
+        return LoanTransactionType.CAPITALIZED_INCOME_AMORTIZATION_ADJUSTMENT.equals(getTypeOf()) && isNotReversed();
     }
 
     public boolean isCapitalizedIncomeAdjustment() {
@@ -826,8 +854,8 @@ public class LoanTransaction extends AbstractAuditableWithUTCDateTimeCustom<Long
                 || type == LoanTransactionType.WITHDRAW_TRANSFER || type == LoanTransactionType.CHARGE_OFF
                 || type == LoanTransactionType.REAMORTIZE || type == LoanTransactionType.REAGE
                 || type == LoanTransactionType.CAPITALIZED_INCOME_AMORTIZATION || type == LoanTransactionType.CONTRACT_TERMINATION
-                || type == LoanTransactionType.CAPITALIZED_INCOME_AMORTIZATION_ADJUSTMENT
-                || type == LoanTransactionType.BUY_DOWN_FEE_AMORTIZATION
+                || type == LoanTransactionType.CAPITALIZED_INCOME_AMORTIZATION_ADJUSTMENT || type == LoanTransactionType.BUY_DOWN_FEE
+                || type == LoanTransactionType.BUY_DOWN_FEE_ADJUSTMENT || type == LoanTransactionType.BUY_DOWN_FEE_AMORTIZATION
                 || type == LoanTransactionType.BUY_DOWN_FEE_AMORTIZATION_ADJUSTMENT);
     }
 
@@ -893,6 +921,10 @@ public class LoanTransaction extends AbstractAuditableWithUTCDateTimeCustom<Long
             if (retainMappings != null) {
                 retainMappings.add(newMapping);
             }
+        }
+
+        if (retainMappings != null) {
+            retainMappings.removeIf(LoanTransactionToRepaymentScheduleMapping::isZeroAmount);
         }
     }
 
@@ -997,5 +1029,17 @@ public class LoanTransaction extends AbstractAuditableWithUTCDateTimeCustom<Long
 
     public boolean isBuyDownFee() {
         return LoanTransactionType.BUY_DOWN_FEE.equals(this.typeOf);
+    }
+
+    public boolean isBuyDownFeeAdjustment() {
+        return LoanTransactionType.BUY_DOWN_FEE_ADJUSTMENT.equals(this.typeOf);
+    }
+
+    public boolean isBuyDownFeeAmortization() {
+        return LoanTransactionType.BUY_DOWN_FEE_AMORTIZATION.equals(this.typeOf);
+    }
+
+    public boolean isBuyDownFeeAmortizationAdjustment() {
+        return LoanTransactionType.BUY_DOWN_FEE_AMORTIZATION_ADJUSTMENT.equals(this.typeOf);
     }
 }

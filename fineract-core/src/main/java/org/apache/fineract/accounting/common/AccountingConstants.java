@@ -53,7 +53,9 @@ public final class AccountingConstants {
         INCOME_FROM_CHARGE_OFF_PENALTY(18), //
         INCOME_FROM_GOODWILL_CREDIT_INTEREST(19), //
         INCOME_FROM_GOODWILL_CREDIT_FEES(20), //
-        INCOME_FROM_GOODWILL_CREDIT_PENALTY(21); //
+        INCOME_FROM_GOODWILL_CREDIT_PENALTY(21), //
+        CLASSIFICATION_INCOME(22), //
+        ;
 
         private final Integer value;
 
@@ -63,7 +65,7 @@ public final class AccountingConstants {
 
         @Override
         public String toString() {
-            return name().toString().replaceAll("_", " ");
+            return name().replace("_", " ");
         }
 
         public Integer getValue() {
@@ -79,8 +81,7 @@ public final class AccountingConstants {
         }
 
         public static CashAccountsForLoan fromInt(final int i) {
-            final CashAccountsForLoan type = intToEnumMap.get(Integer.valueOf(i));
-            return type;
+            return intToEnumMap.get(i);
         }
     }
 
@@ -124,7 +125,7 @@ public final class AccountingConstants {
 
         @Override
         public String toString() {
-            return name().toString().replaceAll("_", " ");
+            return name().replace("_", " ");
         }
 
         public Integer getValue() {
@@ -140,8 +141,7 @@ public final class AccountingConstants {
         }
 
         public static AccrualAccountsForLoan fromInt(final int i) {
-            final AccrualAccountsForLoan type = intToEnumMap.get(Integer.valueOf(i));
-            return type;
+            return intToEnumMap.get(i);
         }
 
     }
@@ -179,12 +179,17 @@ public final class AccountingConstants {
         INCOME_FROM_GOODWILL_CREDIT_FEES("incomeFromGoodwillCreditFeesAccountId"), //
         INCOME_FROM_GOODWILL_CREDIT_PENALTY("incomeFromGoodwillCreditPenaltyAccountId"), //
         CHARGE_OFF_REASON_TO_EXPENSE_ACCOUNT_MAPPINGS("chargeOffReasonToExpenseAccountMappings"), //
+        WRITE_OFF_REASON_TO_EXPENSE_ACCOUNT_MAPPINGS("writeOffReasonsToExpenseMappings"), //
         EXPENSE_GL_ACCOUNT_ID("expenseAccountId"), //
         CHARGE_OFF_REASON_CODE_VALUE_ID("chargeOffReasonCodeValueId"), //
+        WRITE_OFF_REASON_CODE_VALUE_ID("writeOffReasonCodeValueId"), //
         DEFERRED_INCOME_LIABILITY("deferredIncomeLiabilityAccountId"), //
         INCOME_FROM_CAPITALIZATION("incomeFromCapitalizationAccountId"), //
         BUY_DOWN_EXPENSE("buyDownExpenseAccountId"), //
         INCOME_FROM_BUY_DOWN("incomeFromBuyDownAccountId"), //
+        CAPITALIZED_INCOME_CLASSIFICATION_TO_INCOME_ACCOUNT_MAPPINGS("capitalizedIncomeClassificationToIncomeAccountMappings"), //
+        BUYDOWN_FEE_CLASSIFICATION_TO_INCOME_ACCOUNT_MAPPINGS("buydownfeeClassificationToIncomeAccountMappings"), //
+        CLASSIFICATION_CODE_VALUE_ID("classificationCodeValueId"), //
         ;
 
         private final String value;
@@ -195,7 +200,7 @@ public final class AccountingConstants {
 
         @Override
         public String toString() {
-            return name().replaceAll("_", " ");
+            return name().replace("_", " ");
         }
 
         public String getValue() {
@@ -242,7 +247,7 @@ public final class AccountingConstants {
 
         @Override
         public String toString() {
-            return name().replaceAll("_", " ");
+            return name().replace("_", " ");
         }
 
         public String getValue() {
@@ -274,7 +279,7 @@ public final class AccountingConstants {
 
         @Override
         public String toString() {
-            return name().replaceAll("_", " ");
+            return name().replace("_", " ");
         }
 
         public Integer getValue() {
@@ -290,8 +295,7 @@ public final class AccountingConstants {
         }
 
         public static CashAccountsForSavings fromInt(final int i) {
-            final CashAccountsForSavings type = intToEnumMap.get(Integer.valueOf(i));
-            return type;
+            return intToEnumMap.get(i);
         }
     }
 
@@ -312,7 +316,8 @@ public final class AccountingConstants {
         ESCHEAT_LIABILITY(14), //
         FEES_RECEIVABLE(15), //
         PENALTIES_RECEIVABLE(16), //
-        INTEREST_PAYABLE(17);
+        INTEREST_PAYABLE(17), //
+        INTEREST_RECEIVABLE(18);
 
         private final Integer value;
 
@@ -322,7 +327,7 @@ public final class AccountingConstants {
 
         @Override
         public String toString() {
-            return name().replaceAll("_", " ");
+            return name().replace("_", " ");
         }
 
         public Integer getValue() {
@@ -338,8 +343,7 @@ public final class AccountingConstants {
         }
 
         public static AccrualAccountsForSavings fromInt(final int i) {
-            final AccrualAccountsForSavings type = intToEnumMap.get(Integer.valueOf(i));
-            return type;
+            return intToEnumMap.get(i);
         }
     }
 
@@ -366,6 +370,7 @@ public final class AccountingConstants {
         LOSSES_WRITTEN_OFF("writeOffAccountId"), //
         ESCHEAT_LIABILITY("escheatLiabilityId"), //
         PENALTIES_RECEIVABLE("penaltiesReceivableAccountId"), //
+        INTEREST_RECEIVABLE("interestReceivableAccountId"), //
         FEES_RECEIVABLE("feesReceivableAccountId"), //
         INTEREST_PAYABLE("interestPayableAccountId");
 
@@ -377,7 +382,7 @@ public final class AccountingConstants {
 
         @Override
         public String toString() {
-            return name().replaceAll("_", " ");
+            return name().replace("_", " ");
         }
 
         public String getValue() {
@@ -404,7 +409,8 @@ public final class AccountingConstants {
         ESCHEAT_LIABILITY("escheatLiabilityAccount"), //
         FEES_RECEIVABLE("feeReceivableAccount"), //
         PENALTIES_RECEIVABLE("penaltyReceivableAccount"), //
-        INTEREST_PAYABLE("interestPayableAccount"); //
+        INTEREST_PAYABLE("interestPayableAccount"), //
+        INTEREST_RECEIVABLE("interestReceivableAccount"); //
 
         private final String value;
 
@@ -414,7 +420,7 @@ public final class AccountingConstants {
 
         @Override
         public String toString() {
-            return name().replaceAll("_", " ");
+            return name().replace("_", " ");
         }
 
         public String getValue() {
@@ -454,7 +460,7 @@ public final class AccountingConstants {
 
         @Override
         public String toString() {
-            return name().replaceAll("_", " ");
+            return name().replace("_", " ");
         }
 
         public Integer getValue() {
@@ -482,8 +488,7 @@ public final class AccountingConstants {
         }
 
         public static FinancialActivity fromInt(final int financialActivityId) {
-            final FinancialActivity type = intToEnumMap.get(Integer.valueOf(financialActivityId));
-            return type;
+            return intToEnumMap.get(financialActivityId);
         }
 
         public static FinancialActivityData toFinancialActivityData(final int financialActivityId) {
@@ -496,8 +501,7 @@ public final class AccountingConstants {
         }
 
         private static FinancialActivityData convertToFinancialActivityData(final FinancialActivity type) {
-            FinancialActivityData financialActivityData = new FinancialActivityData(type.value, type.code, type.getMappedGLAccountType());
-            return financialActivityData;
+            return new FinancialActivityData(type.value, type.code, type.getMappedGLAccountType());
         }
     }
 
@@ -519,7 +523,7 @@ public final class AccountingConstants {
 
         @Override
         public String toString() {
-            return name().replaceAll("_", " ");
+            return name().replace("_", " ");
         }
 
         public Integer getValue() {
@@ -535,8 +539,7 @@ public final class AccountingConstants {
         }
 
         public static CashAccountsForShares fromInt(final int i) {
-            final CashAccountsForShares type = intToEnumMap.get(Integer.valueOf(i));
-            return type;
+            return intToEnumMap.get(i);
         }
     }
 
@@ -558,7 +561,7 @@ public final class AccountingConstants {
 
         @Override
         public String toString() {
-            return name().replaceAll("_", " ");
+            return name().replace("_", " ");
         }
 
         public String getValue() {

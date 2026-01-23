@@ -113,6 +113,7 @@ public class LoanProductTestBuilder {
     private Account feeAndPenaltyAssetAccount;
 
     private Boolean multiDisburseLoan = false;
+    private Boolean allowFullTermForTranche = false;
     private final String outstandingLoanBalance = "35000";
     private String maxTrancheCount = "3";
     private Boolean disallowExpectedDisbursements = false;
@@ -137,10 +138,10 @@ public class LoanProductTestBuilder {
     private String minimumGuaranteeFromOwnFunds = null;
     private String minimumGuaranteeFromGuarantor = null;
     private String isArrearsBasedOnOriginalSchedule = null;
-    private String graceOnPrincipalPayment = "1";
-    private String graceOnInterestPayment = "1";
+    private String graceOnPrincipalPayment = null;
+    private String graceOnInterestPayment = null;
     private JsonObject allowAttributeOverrides = null;
-    private Boolean allowPartialPeriodInterestCalcualtion = false;
+    private Boolean allowPartialPeriodInterestCalculation = false;
 
     private Boolean allowVariableInstallments = Boolean.FALSE;
     private Integer minimumGap;
@@ -167,6 +168,7 @@ public class LoanProductTestBuilder {
     private String chargeOffBehaviour;
     private boolean interestRecognitionOnDisbursementDate = false;
     private Boolean enableBuyDownFee = false;
+    private Boolean merchantBuyDownFee = false;
     private String buyDownFeeCalculationType;
 
     public String build() {
@@ -224,6 +226,7 @@ public class LoanProductTestBuilder {
         }
         if (this.multiDisburseLoan) {
             map.put("multiDisburseLoan", this.multiDisburseLoan);
+            map.put("allowFullTermForTranche", this.allowFullTermForTranche);
             map.put("maxTrancheCount", this.maxTrancheCount);
             map.put("outstandingLoanBalance", this.outstandingLoanBalance);
             map.put("disallowExpectedDisbursements", this.disallowExpectedDisbursements);
@@ -240,6 +243,10 @@ public class LoanProductTestBuilder {
             map.put("multiDisburseLoan", this.multiDisburseLoan);
             map.put("maxTrancheCount", this.maxTrancheCount);
             map.put("outstandingLoanBalance", this.outstandingLoanBalance);
+        }
+        // Always send allowFullTermForTranche when it's true (for validation testing of single-disburse scenarios)
+        if (this.allowFullTermForTranche && !this.multiDisburseLoan) {
+            map.put("allowFullTermForTranche", this.allowFullTermForTranche);
         }
 
         if (this.fullAccountingConfig != null) {
@@ -283,7 +290,7 @@ public class LoanProductTestBuilder {
         if (allowAttributeOverrides != null) {
             map.put("allowAttributeOverrides", this.allowAttributeOverrides);
         }
-        map.put("allowPartialPeriodInterestCalcualtion", this.allowPartialPeriodInterestCalcualtion);
+        map.put("allowPartialPeriodInterestCalculation", this.allowPartialPeriodInterestCalculation);
         map.put("allowVariableInstallments", allowVariableInstallments);
         if (allowVariableInstallments) {
             map.put("minimumGap", minimumGap);
@@ -347,8 +354,8 @@ public class LoanProductTestBuilder {
             map.put("enableBuyDownFee", this.enableBuyDownFee);
         }
 
-        if (this.buyDownFeeCalculationType != null) {
-            map.put("buyDownFeeCalculationType", this.buyDownFeeCalculationType);
+        if (this.merchantBuyDownFee != null) {
+            map.put("merchantBuyDownFee", this.merchantBuyDownFee);
         }
 
         return map;
@@ -464,9 +471,9 @@ public class LoanProductTestBuilder {
         return this;
     }
 
-    public LoanProductTestBuilder withInterestCalculationPeriodTypeAsRepaymentPeriod(final Boolean allowPartialPeriodInterestCalcualtion) {
+    public LoanProductTestBuilder withInterestCalculationPeriodTypeAsRepaymentPeriod(final Boolean allowPartialPeriodInterestCalculation) {
         this.interestCalculationPeriodType = CALCULATION_PERIOD_SAME_AS_REPAYMENT_PERIOD;
-        this.allowPartialPeriodInterestCalcualtion = allowPartialPeriodInterestCalcualtion;
+        this.allowPartialPeriodInterestCalculation = allowPartialPeriodInterestCalculation;
         return this;
     }
 
@@ -741,6 +748,11 @@ public class LoanProductTestBuilder {
         return this;
     }
 
+    public LoanProductTestBuilder withAllowFullTermForTranche(boolean allowFullTermForTranche) {
+        this.allowFullTermForTranche = allowFullTermForTranche;
+        return this;
+    }
+
     public LoanProductTestBuilder withFeeToIncomeAccountMapping(final Long chargeId, final Long accountId) {
         if (this.feeToIncomeAccountMappings == null) {
             this.feeToIncomeAccountMappings = new ArrayList<>();
@@ -802,8 +814,8 @@ public class LoanProductTestBuilder {
         return this;
     }
 
-    public LoanProductTestBuilder withAllowPartialPeriodInterestCalculation(final Boolean allowPartialPeriodInterestCalcualtion) {
-        this.allowPartialPeriodInterestCalcualtion = allowPartialPeriodInterestCalcualtion;
+    public LoanProductTestBuilder withAllowPartialPeriodInterestCalculation(final Boolean allowPartialPeriodInterestCalculation) {
+        this.allowPartialPeriodInterestCalculation = allowPartialPeriodInterestCalculation;
         return this;
     }
 
@@ -833,7 +845,7 @@ public class LoanProductTestBuilder {
         }
         Map<String, Long> newMap = new HashMap<>();
         newMap.put("chargeOffReasonCodeValueId", reasonId);
-        newMap.put("expenseGLAccountId", accountId);
+        newMap.put("expenseAccountId", accountId);
         this.chargeOffReasonToExpenseAccountMappings.add(newMap);
         return this;
     }
@@ -918,6 +930,11 @@ public class LoanProductTestBuilder {
 
     public LoanProductTestBuilder withEnableBuyDownFee(final Boolean enableBuyDownFee) {
         this.enableBuyDownFee = enableBuyDownFee;
+        return this;
+    }
+
+    public LoanProductTestBuilder withMerchantBuyDownFee(final Boolean merchantBuyDownFee) {
+        this.merchantBuyDownFee = merchantBuyDownFee;
         return this;
     }
 

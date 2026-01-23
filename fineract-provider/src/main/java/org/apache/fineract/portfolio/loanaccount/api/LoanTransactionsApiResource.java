@@ -27,6 +27,8 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
@@ -63,14 +65,19 @@ import org.apache.fineract.infrastructure.core.service.CommandParameterUtil;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
+import org.apache.fineract.portfolio.loanaccount.api.request.ReAgePreviewRequest;
+import org.apache.fineract.portfolio.loanaccount.api.request.ReAmortizationPreviewRequest;
 import org.apache.fineract.portfolio.loanaccount.data.LoanRepaymentScheduleInstallmentData;
 import org.apache.fineract.portfolio.loanaccount.data.LoanTransactionData;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanTransactionType;
 import org.apache.fineract.portfolio.loanaccount.exception.InvalidLoanTransactionTypeException;
 import org.apache.fineract.portfolio.loanaccount.exception.LoanNotFoundException;
 import org.apache.fineract.portfolio.loanaccount.exception.LoanTransactionNotFoundException;
+import org.apache.fineract.portfolio.loanaccount.loanschedule.data.LoanScheduleData;
 import org.apache.fineract.portfolio.loanaccount.service.LoanChargePaidByReadService;
 import org.apache.fineract.portfolio.loanaccount.service.LoanReadPlatformService;
+import org.apache.fineract.portfolio.loanaccount.service.reaging.LoanReAgingService;
+import org.apache.fineract.portfolio.loanaccount.service.reamortization.LoanReAmortizationService;
 import org.apache.fineract.portfolio.paymenttype.data.PaymentTypeData;
 import org.apache.fineract.portfolio.paymenttype.service.PaymentTypeReadPlatformService;
 import org.springframework.data.domain.Page;
@@ -91,10 +98,10 @@ public class LoanTransactionsApiResource {
     public static final String REAMORTIZE = "reAmortize";
     public static final String UNDO_REAMORTIZE = "undoReAmortize";
     public static final String CAPITALIZED_INCOME = "capitalizedIncome";
-    public static final String CAPITALIZED_INCOME_ADJUSTMENT = "capitalizedIncomeAdjustment";
-    public static final String CONTRACT_TERMINATION = "contractTermination";
+    public static final String INTEREST_REFUND_COMMAND_VALUE = "interest-refund";
     private final Set<String> responseDataParameters = new HashSet<>(Arrays.asList("id", "type", "date", "currency", "amount", "externalId",
-            LoanApiConstants.REVERSAL_EXTERNAL_ID_PARAMNAME, LoanApiConstants.REVERSED_ON_DATE_PARAMNAME));
+            LoanApiConstants.REVERSAL_EXTERNAL_ID_PARAMNAME, LoanApiConstants.REVERSED_ON_DATE_PARAMNAME, "classification",
+            "numberOfFutureInstallments", "numberOfPastInstallments", "nextInstallmentDueDate", "calculatedStartDate"));
 
     private static final String RESOURCE_NAME_FOR_PERMISSIONS = "LOAN";
 
@@ -105,6 +112,8 @@ public class LoanTransactionsApiResource {
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
     private final PaymentTypeReadPlatformService paymentTypeReadPlatformService;
     private final LoanChargePaidByReadService loanChargePaidByReadService;
+    private final LoanReAgingService loanReAgingService;
+    private final LoanReAmortizationService loanReAmortizationService;
 
     @GET
     @Path("{loanId}/transactions/template")
@@ -121,7 +130,8 @@ public class LoanTransactionsApiResource {
             + "loans/1/transactions/template?command=refundbycash" + "\n" + "loans/1/transactions/template?command=refundbytransfer" + "\n"
             + "loans/1/transactions/template?command=foreclosure" + "\n" + "loans/1/transactions/template?command=interestPaymentWaiver"
             + "\n" + "loans/1/transactions/template?command=creditBalanceRefund (returned 'amount' field will have the overpaid value)"
-            + "\n" + "loans/1/transactions/template?command=charge-off" + "\n" + "loans/1/transactions/template?command=downPayment" + "\n")
+            + "\n" + "loans/1/transactions/template?command=charge-off" + "\n" + "loans/1/transactions/template?command=downPayment" + "\n"
+            + "loans/1/transactions/template?command=interest-refund")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = LoanTransactionsApiResourceSwagger.GetLoansLoanIdTransactionsTemplateResponse.class))) })
     public String retrieveTransactionTemplate(@PathParam("loanId") @Parameter(description = "loanId", required = true) final Long loanId,
@@ -151,7 +161,8 @@ public class LoanTransactionsApiResource {
             + "loans/1/transactions/template?command=refundbycash" + "\n" + "loans/1/transactions/template?command=refundbytransfer" + "\n"
             + "loans/1/transactions/template?command=foreclosure" + "\n" + "loans/1/transactions/template?command=interestPaymentWaiver"
             + "\n" + "loans/1/transactions/template?command=creditBalanceRefund (returned 'amount' field will have the overpaid value)"
-            + "\n" + "loans/1/transactions/template?command=charge-off" + "\n" + "loans/1/transactions/template?command=downPayment" + "\n")
+            + "\n" + "loans/1/transactions/template?command=charge-off" + "\n" + "loans/1/transactions/template?command=downPayment" + "\n"
+            + "loans/1/transactions/template?command=interest-refund")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = LoanTransactionsApiResourceSwagger.GetLoansLoanIdTransactionsTemplateResponse.class))) })
     public String retrieveTransactionTemplate(
@@ -468,7 +479,7 @@ public class LoanTransactionsApiResource {
         ExternalId loanExternalId = ExternalIdFactory.produce(loanExternalIdStr);
         ExternalId transactionExternalId = ExternalIdFactory.produce(transactionExternalIdStr);
 
-        Long resolvedLoanId = getResolvedLoanId(loanId, loanExternalId);
+        Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
         Long resolvedLoanTransactionId = getResolvedLoanTransactionId(transactionId, transactionExternalId);
 
         LoanTransactionData transactionData = this.loanReadPlatformService.retrieveLoanTransaction(resolvedLoanId,
@@ -549,7 +560,7 @@ public class LoanTransactionsApiResource {
         final CommandWrapperBuilder builder = new CommandWrapperBuilder().withJson(apiRequestBodyAsJson);
 
         ExternalId loanExternalId = ExternalIdFactory.produce(loanExternalIdStr);
-        Long resolvedLoanId = getResolvedLoanId(loanId, loanExternalId);
+        Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
 
         CommandWrapper commandRequest = null;
         if (CommandParameterUtil.is(commandParam, "repayment")) {
@@ -615,7 +626,7 @@ public class LoanTransactionsApiResource {
 
         ExternalId loanExternalId = ExternalIdFactory.produce(loanExternalIdStr);
 
-        Long resolvedLoanId = getResolvedLoanId(loanId, loanExternalId);
+        Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
         LoanTransactionData transactionData;
 
         if (CommandParameterUtil.is(commandParam, "repayment")) {
@@ -694,6 +705,12 @@ public class LoanTransactionsApiResource {
         } else if (CommandParameterUtil.is(commandParam, LoanApiConstants.BUY_DOWN_FEE_ADJUSTMENT_COMMAND)) {
             transactionData = this.loanReadPlatformService.retrieveLoanTransactionTemplate(resolvedLoanId,
                     LoanTransactionType.BUY_DOWN_FEE_ADJUSTMENT, transactionId);
+        } else if (CommandParameterUtil.is(commandParam, INTEREST_REFUND_COMMAND_VALUE)) {
+            transactionData = this.loanReadPlatformService.retrieveManualInterestRefundTemplate(resolvedLoanId, transactionId);
+        } else if (CommandParameterUtil.is(commandParam, LoanApiConstants.REAGE_COMMAND)) {
+            transactionData = this.loanReadPlatformService.retrieveLoanReAgeTemplate(resolvedLoanId);
+        } else if (CommandParameterUtil.is(commandParam, LoanApiConstants.REAMORTIZATION_COMMAND)) {
+            transactionData = this.loanReadPlatformService.retrieveLoanReAmortizationTemplate(resolvedLoanId);
         } else {
             throw new UnrecognizedQueryParamException("command", commandParam);
         }
@@ -709,7 +726,7 @@ public class LoanTransactionsApiResource {
         ExternalId loanExternalId = ExternalIdFactory.produce(loanExternalIdStr);
         ExternalId transactionExternalId = ExternalIdFactory.produce(transactionExternalIdStr);
 
-        Long resolvedLoanId = getResolvedLoanId(loanId, loanExternalId);
+        Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
         Long resolvedTransactionId = getResolvedLoanTransactionId(transactionId, transactionExternalId);
         CommandWrapper commandRequest;
         if (CommandParameterUtil.is(commandParam, LoanApiConstants.CHARGEBACK_TRANSACTION_COMMAND)) {
@@ -718,6 +735,8 @@ public class LoanTransactionsApiResource {
             commandRequest = builder.capitalizedIncomeAdjustment(resolvedLoanId, resolvedTransactionId).build();
         } else if (CommandParameterUtil.is(commandParam, LoanApiConstants.BUY_DOWN_FEE_ADJUSTMENT_COMMAND)) {
             commandRequest = builder.buyDownFeeAdjustment(resolvedLoanId, resolvedTransactionId).build();
+        } else if (CommandParameterUtil.is(commandParam, INTEREST_REFUND_COMMAND_VALUE)) {
+            commandRequest = builder.manualInterestRefund(resolvedLoanId, resolvedTransactionId).build();
         } else { // Default to adjust the Loan Transaction
             commandRequest = builder.adjustTransaction(resolvedLoanId, resolvedTransactionId).build();
         }
@@ -732,7 +751,7 @@ public class LoanTransactionsApiResource {
         ExternalId loanExternalId = ExternalIdFactory.produce(loanExternalIdStr);
         ExternalId transactionExternalId = ExternalIdFactory.produce(transactionExternalIdStr);
 
-        Long resolvedLoanId = getResolvedLoanId(loanId, loanExternalId);
+        Long resolvedLoanId = loanId == null ? loanReadPlatformService.getResolvedLoanId(loanExternalId) : loanId;
         Long resolvedTransactionId = getResolvedLoanTransactionId(transactionId, transactionExternalId);
         final CommandWrapper commandRequest = new CommandWrapperBuilder().undoWaiveChargeTransaction(resolvedLoanId, resolvedTransactionId)
                 .build();
@@ -752,18 +771,6 @@ public class LoanTransactionsApiResource {
         return resolvedLoanTransactionId;
     }
 
-    private Long getResolvedLoanId(final Long loanId, final ExternalId loanExternalId) {
-        Long resolvedLoanId = loanId;
-        if (resolvedLoanId == null) {
-            loanExternalId.throwExceptionIfEmpty();
-            resolvedLoanId = this.loanReadPlatformService.retrieveLoanIdByExternalId(loanExternalId);
-            if (resolvedLoanId == null) {
-                throw new LoanNotFoundException(loanExternalId);
-            }
-        }
-        return resolvedLoanId;
-    }
-
     private Long getResolvedLoanIdWithExistsCheck(final Long loanId, final ExternalId loanExternalId) {
         if (loanId != null) {
             if (!loanReadPlatformService.existsByLoanId(loanId)) {
@@ -780,4 +787,48 @@ public class LoanTransactionsApiResource {
             throw new IllegalArgumentException("loanId and loanExternalId cannot be both null");
         }
     }
+
+    @GET
+    @Path("{loanId}/transactions/reage-preview")
+    @Produces({ MediaType.APPLICATION_JSON })
+    @Operation(summary = "Preview Re-Age Schedule", description = "Generates a preview of the re-aged loan schedule based on the provided parameters without creating any transactions or modifying the loan.")
+    public LoanScheduleData previewReAgeSchedule(@PathParam("loanId") @Parameter(description = "loanId", required = true) final Long loanId,
+            @Valid @BeanParam final ReAgePreviewRequest reAgePreviewRequest) {
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        return loanReAgingService.previewReAge(loanId, null, reAgePreviewRequest);
+    }
+
+    @GET
+    @Path("external-id/{loanExternalId}/transactions/reage-preview")
+    @Produces({ MediaType.APPLICATION_JSON })
+    @Operation(summary = "Preview Re-Age Schedule", description = "Generates a preview of the re-aged loan schedule based on the provided parameters without creating any transactions or modifying the loan.")
+    public LoanScheduleData previewReAgeSchedule(
+            @PathParam("loanExternalId") @Parameter(description = "loanExternalId", required = true) final String loanExternalId,
+            @Valid @BeanParam final ReAgePreviewRequest reAgePreviewRequest) {
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        return loanReAgingService.previewReAge(null, loanExternalId, reAgePreviewRequest);
+    }
+
+    @GET
+    @Path("{loanId}/transactions/reamortization-preview")
+    @Produces({ MediaType.APPLICATION_JSON })
+    @Operation(summary = "Preview Re-Amortized Schedule", description = "Generates a preview of the re-amortized loan schedule based on the provided parameters without creating any transactions or modifying the loan.")
+    public LoanScheduleData previewReAmortizationSchedule(
+            @PathParam("loanId") @Parameter(description = "loanId", required = true) final Long loanId,
+            @Valid @BeanParam final ReAmortizationPreviewRequest reAmortizationPreviewRequest) {
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        return loanReAmortizationService.previewReAmortization(loanId, null, reAmortizationPreviewRequest);
+    }
+
+    @GET
+    @Path("external-id/{loanExternalId}/transactions/reamortization-preview")
+    @Produces({ MediaType.APPLICATION_JSON })
+    @Operation(summary = "Preview Re-amortized Schedule", description = "Generates a preview of the re-amortized loan schedule based on the provided parameters without creating any transactions or modifying the loan.")
+    public LoanScheduleData previewReAmortizationSchedule(
+            @PathParam("loanExternalId") @Parameter(description = "loanExternalId", required = true) final String loanExternalId,
+            @Valid @BeanParam final ReAmortizationPreviewRequest reAmortizationPreviewRequest) {
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+        return loanReAmortizationService.previewReAmortization(null, loanExternalId, reAmortizationPreviewRequest);
+    }
+
 }

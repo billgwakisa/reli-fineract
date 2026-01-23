@@ -61,17 +61,17 @@ import org.apache.fineract.portfolio.loanaccount.domain.Loan;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanCharge;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanChargePaidBy;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanCreditAllocationRule;
+import org.apache.fineract.portfolio.loanaccount.domain.LoanInterestRecalculationDetails;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanPaymentAllocationRule;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepaymentScheduleInstallment;
-import org.apache.fineract.portfolio.loanaccount.domain.LoanRepositoryWrapper;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanTransaction;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanTransactionRelation;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanTransactionRelationTypeEnum;
-import org.apache.fineract.portfolio.loanaccount.domain.LoanTransactionRepository;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanTransactionType;
 import org.apache.fineract.portfolio.loanaccount.domain.transactionprocessor.MoneyHolder;
 import org.apache.fineract.portfolio.loanaccount.domain.transactionprocessor.TransactionCtx;
 import org.apache.fineract.portfolio.loanaccount.loanschedule.domain.LoanScheduleProcessingType;
+import org.apache.fineract.portfolio.loanaccount.loanschedule.domain.ScheduledDateGenerator;
 import org.apache.fineract.portfolio.loanaccount.serialization.LoanChargeValidator;
 import org.apache.fineract.portfolio.loanaccount.service.InterestRefundService;
 import org.apache.fineract.portfolio.loanaccount.service.LoanBalanceService;
@@ -119,10 +119,9 @@ class AdvancedPaymentScheduleTransactionProcessorTest {
 
     @BeforeEach
     public void setUp() {
-        underTest = new AdvancedPaymentScheduleTransactionProcessor(emiCalculator, Mockito.mock(LoanRepositoryWrapper.class),
-                Mockito.mock(InterestRefundService.class), Mockito.mock(ExternalIdFactory.class), Mockito.mock(LoanScheduleComponent.class),
-                Mockito.mock(LoanTransactionRepository.class), Mockito.mock(LoanChargeValidator.class),
-                Mockito.mock(LoanBalanceService.class), Mockito.mock(LoanChargeService.class));
+        underTest = new AdvancedPaymentScheduleTransactionProcessor(emiCalculator, Mockito.mock(InterestRefundService.class),
+                Mockito.mock(ExternalIdFactory.class), Mockito.mock(LoanScheduleComponent.class), Mockito.mock(LoanChargeValidator.class),
+                Mockito.mock(LoanBalanceService.class), Mockito.mock(LoanChargeService.class), Mockito.mock(ScheduledDateGenerator.class));
 
         ThreadLocalContextUtil.setTenant(new FineractPlatformTenant(1L, "default", "Default", "Asia/Kolkata", null));
         ThreadLocalContextUtil.setActionContext(ActionContext.DEFAULT);
@@ -259,12 +258,12 @@ class AdvancedPaymentScheduleTransactionProcessorTest {
         when(loan.getPaymentAllocationRules()).thenReturn(List.of(loanPaymentAllocationRule));
         when(loanPaymentAllocationRule.getTransactionType()).thenReturn(PaymentAllocationTransactionType.DEFAULT);
         when(loanPaymentAllocationRule.getAllocationTypes()).thenReturn(List.of(PaymentAllocationType.DUE_PRINCIPAL));
-        when(loanTransaction.isOn(eq(transactionDate))).thenReturn(true);
+        when(loanTransaction.isOn(transactionDate)).thenReturn(true);
 
         underTest.processLatestTransaction(loanTransaction,
                 new TransactionCtx(currency, List.of(installment), Set.of(charge), new MoneyHolder(overpaidAmount), null));
 
-        Mockito.verify(installment, times(1)).payFeeChargesComponent(eq(transactionDate), eq(chargeAmountMoney));
+        Mockito.verify(installment, times(1)).payFeeChargesComponent(transactionDate, chargeAmountMoney);
         Mockito.verify(loanTransaction, times(1)).updateComponents(refEq(zero), refEq(zero), refEq(chargeAmountMoney), refEq(zero));
         assertEquals(0, BigDecimal.valueOf(20).compareTo(loanTransaction.getAmount(currency).minus(chargeAmountMoney).getAmount()));
         assertEquals(0, chargeAmount.compareTo(installment.getFeeChargesCharged(currency).getAmount()));
@@ -467,6 +466,9 @@ class AdvancedPaymentScheduleTransactionProcessorTest {
         when(loanTransaction.getLoan()).thenReturn(loan);
         when(loan.getCurrency()).thenReturn(currency);
         when(loan.getPaymentAllocationRules()).thenReturn(List.of(loanPaymentAllocationRule));
+        LoanInterestRecalculationDetails loanInterestRecalculationDetails = mock(LoanInterestRecalculationDetails.class);
+        when(loanInterestRecalculationDetails.disallowInterestCalculationOnPastDue()).thenReturn(false);
+        when(loan.getLoanInterestRecalculationDetails()).thenReturn(loanInterestRecalculationDetails);
 
         when(loanPaymentAllocationRule.getTransactionType()).thenReturn(PaymentAllocationTransactionType.DEFAULT);
         when(loanPaymentAllocationRule.getAllocationTypes())
@@ -489,7 +491,7 @@ class AdvancedPaymentScheduleTransactionProcessorTest {
 
         // Set up TransactionCtx with installments and charges
         TransactionCtx ctx = new ProgressiveTransactionCtx(currency, installments, Set.of(), overpaymentHolder, changedTransactionDetail,
-                model);
+                model, null);
 
         // Mock additional necessary methods
         LoanCharge loanCharge = mock(LoanCharge.class);
@@ -505,9 +507,10 @@ class AdvancedPaymentScheduleTransactionProcessorTest {
         ArgumentCaptor<Money> paidPortionCaptor = ArgumentCaptor.forClass(Money.class);
         ArgumentCaptor<LocalDate> payDateCaptor = ArgumentCaptor.forClass(LocalDate.class);
 
+        final LocalDate repaymentPeriodFromDate = transactionDate.minusMonths(1);
         // Verify `payPrincipal` is called when allocation type is DUE_PRINCIPAL
-        Mockito.verify(emiCalculator, atLeastOnce()).payPrincipal(eq(model), eq(transactionDate), payDateCaptor.capture(),
-                paidPortionCaptor.capture());
+        Mockito.verify(emiCalculator, atLeastOnce()).payPrincipal(eq(model), eq(repaymentPeriodFromDate), eq(transactionDate),
+                payDateCaptor.capture(), paidPortionCaptor.capture());
         Money paidPortion = paidPortionCaptor.getValue();
         LocalDate payDate = payDateCaptor.getValue();
 
@@ -564,6 +567,7 @@ class AdvancedPaymentScheduleTransactionProcessorTest {
         Mockito.doNothing().when(loan).addLoanRepaymentScheduleInstallment(installmentCaptor.capture());
 
         ProgressiveLoanInterestScheduleModel model = mock(ProgressiveLoanInterestScheduleModel.class);
+        when(model.getMaturityDate()).thenReturn(LocalDate.of(2023, 12, 31));
 
         TransactionCtx ctx = new ProgressiveTransactionCtx(currency, spyInstallments, Set.of(), new MoneyHolder(Money.zero(currency)),
                 mock(ChangedTransactionDetail.class), model, Money.zero(currency));

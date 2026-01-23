@@ -524,6 +524,8 @@ final class LoansApiResourceSwagger {
             @Schema(example = "1000000.000000")
             public BigDecimal totalCapitalizedIncome;
             @Schema(example = "0.000000")
+            public BigDecimal totalCapitalizedIncomeAdjustment;
+            @Schema(example = "0.000000")
             public BigDecimal principalPaid;
             @Schema(example = "0.00")
             public BigDecimal principalAdjustments;
@@ -601,6 +603,8 @@ final class LoansApiResourceSwagger {
             public String writeoffReason;
             public GetLoansLoanIdLinkedAccount linkedAccount;
             public Set<GetLoansLoanIdDisbursementDetails> disbursementDetails;
+            @Schema(example = "false", description = "Allow full term length for each tranche disbursement")
+            public Boolean allowFullTermForTranche;
             @Schema(example = "1100.000000")
             public BigDecimal fixedEmiAmount;
             @Schema(example = "35000.000000")
@@ -1018,10 +1022,14 @@ final class LoansApiResourceSwagger {
 
             @Schema(example = "100.000000")
             public BigDecimal availableDisbursementAmount;
+            @Schema(example = "150.000000")
+            public BigDecimal availableDisbursementAmountWithOverApplied;
             @Schema(example = "12")
             public Integer pastDueDays;
             @Schema(example = "[2022, 07, 01]")
             public LocalDate nextPaymentDueDate;
+            @Schema(example = "123.23")
+            public BigDecimal nextPaymentAmount;
             @Schema(example = "4")
             public Integer delinquentDays;
             @Schema(example = "[2022, 07, 01]")
@@ -1120,6 +1128,29 @@ final class LoansApiResourceSwagger {
             public boolean isProcessed;
         }
 
+        @Schema(description = "Originator data associated with the loan")
+        static final class GetLoansLoanIdOriginatorData {
+
+            private GetLoansLoanIdOriginatorData() {}
+
+            @Schema(example = "1")
+            public Long id;
+            @Schema(example = "REV-SHARE-001")
+            public String externalId;
+            @Schema(example = "PP Merchant")
+            public String name;
+            @Schema(example = "ACTIVE")
+            public String status;
+            @Schema(example = "1")
+            public Long originatorTypeId;
+            @Schema(example = "MERCHANT")
+            public String originatorTypeName;
+            @Schema(example = "2")
+            public Long channelTypeId;
+            @Schema(example = "ONLINE")
+            public String channelTypeName;
+        }
+
         @Schema(example = "1")
         public Long id;
         @Schema(example = "95174ff9-1a75-4d72-a413-6f9b1cb988b7")
@@ -1192,10 +1223,14 @@ final class LoansApiResourceSwagger {
         public List<GetLoansLoanIdTransactions> transactions;
         @Schema(description = "Set of GetLoansLoanIdDisbursementDetails")
         public Set<GetLoansLoanIdDisbursementDetails> disbursementDetails;
+        @Schema(example = "false", description = "Allow full term length for each tranche disbursement")
+        public Boolean allowFullTermForTranche;
         @Schema(description = "Delinquent data")
         public GetLoansLoanIdDelinquencySummary delinquent;
         @Schema(description = "Set of charges")
         public List<GetLoansLoanIdLoanChargeData> charges;
+        @Schema(description = "List of originators associated with this loan")
+        public List<GetLoansLoanIdOriginatorData> originators;
         public DelinquencyRangeData delinquencyRange;
         @Schema(example = "false")
         public Boolean fraud;
@@ -1210,6 +1245,14 @@ final class LoansApiResourceSwagger {
         public Boolean chargedOff;
         @Schema(example = "3")
         public Integer inArrearsTolerance;
+        @Schema(example = "0")
+        public Integer graceOnPrincipalPayment;
+        @Schema(example = "0")
+        public Integer graceOnInterestPayment;
+        @Schema(example = "0")
+        public Integer graceOnInterestCharged;
+        @Schema(example = "3")
+        public Integer graceOnArrearsAgeing;
         @Schema(example = "false")
         public Boolean enableDownPayment;
         @Schema(example = "0.000000")
@@ -1330,6 +1373,8 @@ final class LoansApiResourceSwagger {
         public String externalId;
         @Schema(description = "List of PostLoansDisbursementData")
         public List<PostLoansDisbursementData> disbursementData;
+        @Schema(example = "false", description = "Allow full term length for each tranche disbursement")
+        public Boolean allowFullTermForTranche;
         @Schema(description = "Maximum allowed outstanding balance")
         public BigDecimal maxOutstandingLoanBalance;
         @Schema(example = "[2011, 10, 20]")
@@ -1342,6 +1387,8 @@ final class LoansApiResourceSwagger {
         public Integer graceOnInterestPayment;
         @Schema(example = "1")
         public Integer graceOnArrearsAgeing;
+        @Schema(example = "10")
+        public BigDecimal inArrearsTolerance;
         @Schema(example = "HORIZONTAL")
         public String loanScheduleProcessingType;
         @Schema(example = "false")
@@ -1377,6 +1424,13 @@ final class LoansApiResourceSwagger {
 
         public List<PostLoansRequestChargeData> charges;
 
+        @Schema(description = """
+                Optional array of originators to associate with this loan. \
+                Each entry can reference an existing originator by 'id' or 'externalId'. \
+                If the global config 'enable_originator_creation_during_loan_application' is enabled, \
+                non-existing originators will be auto-created using the provided details (name, typeId, channelTypeId).""")
+        public List<PostLoansOriginatorData> originators;
+
         static final class PostLoansRequestChargeData {
 
             private PostLoansRequestChargeData() {}
@@ -1386,6 +1440,27 @@ final class LoansApiResourceSwagger {
 
             @Schema(example = "1.0")
             public BigDecimal amount;
+        }
+
+        @Schema(description = "Originator data for loan creation request")
+        public static final class PostLoansOriginatorData {
+
+            private PostLoansOriginatorData() {}
+
+            @Schema(description = "Originator internal ID (use this OR externalId, not both)", example = "1")
+            public Long id;
+
+            @Schema(description = "Originator external ID (use this OR id, not both)", example = "REV-SHARE-001")
+            public String externalId;
+
+            @Schema(description = "Originator name (used when creating new originator if config enabled)", example = "PP Merchant")
+            public String name;
+
+            @Schema(description = "Code value ID for originator type (from LoanOriginatorType code)", example = "1")
+            public Long typeId;
+
+            @Schema(description = "Code value ID for channel type (from LoanOriginationChannelType code)", example = "2")
+            public Long channelTypeId;
         }
     }
 
@@ -1534,6 +1609,8 @@ final class LoansApiResourceSwagger {
         public List<PutLoansLoanIdChanges> charges;
         public List<PutLoansLoanIdCollateral> collateral;
         public List<PutLoansLoanIdDisbursementData> disbursementData;
+        @Schema(example = "false", description = "Allow full term length for each tranche disbursement")
+        public Boolean allowFullTermForTranche;
         @Schema(example = "HORIZONTAL")
         public String loanScheduleProcessingType;
         @Schema(example = "false")
@@ -1770,5 +1847,95 @@ final class LoansApiResourceSwagger {
         public String subResourceExternalId;
         @Schema(description = "PostLoansLoanIdChanges")
         public PostLoansLoanIdChanges changes;
+    }
+
+    @Schema(description = "PutLoansApprovedAmountRequest")
+    public static final class PutLoansApprovedAmountRequest {
+
+        private PutLoansApprovedAmountRequest() {}
+
+        @Schema(example = "1000")
+        public BigDecimal amount;
+        @Schema(example = "en")
+        public String locale;
+    }
+
+    @Schema(description = "PutLoansApprovedAmountResponse")
+    public static final class PutLoansApprovedAmountResponse {
+
+        private PutLoansApprovedAmountResponse() {}
+
+        static final class PutLoansApprovedAmountChanges {
+
+            private PutLoansApprovedAmountChanges() {}
+
+            @Schema(example = "1000")
+            public BigDecimal oldApprovedAmount;
+            @Schema(example = "1000")
+            public BigDecimal newApprovedAmount;
+            @Schema(example = "en_GB")
+            public String locale;
+        }
+
+        @Schema(example = "3")
+        public Long resourceId;
+        @Schema(example = "95174ff9-1a75-4d72-a413-6f9b1cb988b7")
+        public String resourceExternalId;
+        @Schema(example = "2")
+        public Long officeId;
+        @Schema(example = "6")
+        public Long clientId;
+        @Schema(example = "10")
+        public Long groupId;
+
+        @Schema(description = "PutLoansApprovedAmountChanges")
+        public PutLoansApprovedAmountChanges changes;
+    }
+
+    @Schema(description = "PutLoansAvailableDisbursementAmountRequest")
+    public static final class PutLoansAvailableDisbursementAmountRequest {
+
+        private PutLoansAvailableDisbursementAmountRequest() {}
+
+        @Schema(example = "1000")
+        public BigDecimal amount;
+        @Schema(example = "en")
+        public String locale;
+    }
+
+    @Schema(description = "PutLoansAvailableDisbursementAmountResponse")
+    public static final class PutLoansAvailableDisbursementAmountResponse {
+
+        private PutLoansAvailableDisbursementAmountResponse() {}
+
+        static final class PutLoansAvailableDisbursementAmountChanges {
+
+            private PutLoansAvailableDisbursementAmountChanges() {}
+
+            @Schema(example = "1000")
+            public BigDecimal oldApprovedAmount;
+            @Schema(example = "1000")
+            public BigDecimal newApprovedAmount;
+            @Schema(example = "1000")
+            public BigDecimal oldAvailableDisbursementAmount;
+            @Schema(example = "1000")
+            public BigDecimal newAvailableDisbursementAmount;
+            @Schema(example = "en_GB")
+            public String locale;
+        }
+
+        @Schema(example = "3")
+        public Long resourceId;
+        @Schema(example = "95174ff9-1a75-4d72-a413-6f9b1cb988b7")
+        public String resourceExternalId;
+        @Schema(example = "2")
+        public Long officeId;
+        @Schema(example = "6")
+        public Long clientId;
+        @Schema(example = "10")
+        public Long groupId;
+
+        @Schema(description = "PutLoansAvailableDisbursementAmountChanges")
+        public PutLoansAvailableDisbursementAmountChanges changes;
     }
 }

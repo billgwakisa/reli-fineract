@@ -30,7 +30,9 @@ import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiCon
 import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant.API_FIELD_NEWCODE;
 import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant.API_FIELD_NEWNAME;
 import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant.API_FIELD_TYPE;
+import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant.API_FIELD_TYPE_DATETIME;
 import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant.API_FIELD_TYPE_DROPDOWN;
+import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant.API_FIELD_TYPE_TIMESTAMP;
 import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant.API_FIELD_UNIQUE;
 import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant.API_PARAM_ADDCOLUMNS;
 import static org.apache.fineract.infrastructure.dataqueries.api.DataTableApiConstant.API_PARAM_APPTABLE_NAME;
@@ -52,7 +54,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 import jakarta.persistence.PersistenceException;
-import jakarta.validation.constraints.NotNull;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.sql.PreparedStatement;
@@ -110,6 +111,7 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.lang.NonNull;
 import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -392,9 +394,16 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
             }
 
             if (dropColumns != null) {
+                // Check if any of the columns to be dropped have non-NULL values
                 if (rowCount > 0) {
-                    throw new GeneralPlatformDomainRuleException("error.msg.non.empty.datatable.column.cannot.be.deleted",
-                            "Non-empty datatable columns can not be deleted.");
+                    for (final JsonElement column : dropColumns) {
+                        JsonObject columnAsJson = column.getAsJsonObject();
+                        final String columnName = columnAsJson.has(API_FIELD_NAME) ? columnAsJson.get(API_FIELD_NAME).getAsString() : null;
+                        if (columnName != null && hasNonNullValues(datatableName, columnName)) {
+                            throw new GeneralPlatformDomainRuleException("error.msg.non.empty.datatable.column.cannot.be.deleted",
+                                    "Non-empty datatable columns can not be deleted. Column '" + columnName + "' has non-null values.");
+                        }
+                    }
                 }
                 StringBuilder sqlBuilder = new StringBuilder(ALTER_TABLE + sqlGenerator.escape(datatableName));
                 final StringBuilder constrainBuilder = new StringBuilder();
@@ -680,7 +689,7 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
 
         if (StringUtils.isNotBlank(code)) {
             if (isConstraintApproach) {
-                codeMappings.put(dataTableNameAlias + "_" + name, this.codeReadPlatformService.retriveCode(code).getId());
+                codeMappings.put(dataTableNameAlias + "_" + name, this.codeReadPlatformService.retrieveCode(code).getId());
                 String fkName = "fk_" + dataTableNameAlias + "_" + name;
                 constrainBuilder.append(", CONSTRAINT ").append(sqlGenerator.escape(fkName)).append(" ").append("FOREIGN KEY (")
                         .append(sqlGenerator.escape(name)).append(") ").append(REFERENCES_CLAUSE)
@@ -744,7 +753,7 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
         if (StringUtils.isNotBlank(code)) {
             if (isConstraintApproach) {
                 String fkName = "fk_" + dataTableNameAlias + "_" + name;
-                codeMappings.put(dataTableNameAlias + "_" + name, this.codeReadPlatformService.retriveCode(code).getId());
+                codeMappings.put(dataTableNameAlias + "_" + name, this.codeReadPlatformService.retrieveCode(code).getId());
                 constrainBuilder.append(",ADD CONSTRAINT  ").append(sqlGenerator.escape(fkName)).append(" ").append("FOREIGN KEY (")
                         .append(sqlGenerator.escape(name)).append(") ").append(REFERENCES_CLAUSE)
                         .append(sqlGenerator.escape(CODE_VALUES_TABLE)).append(" (").append(TABLE_FIELD_ID).append(")");
@@ -814,7 +823,7 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
                         }
                     }
                     if (newCode != null) {
-                        codeMappings.put(dataTableNameAlias + "_" + newName, this.codeReadPlatformService.retriveCode(newCode).getId());
+                        codeMappings.put(dataTableNameAlias + "_" + newName, this.codeReadPlatformService.retrieveCode(newCode).getId());
                         if (code == null || !StringUtils.equalsIgnoreCase(oldName, newName)) {
                             constrainBuilder.append(", ADD CONSTRAINT  ").append(sqlGenerator.escape(newFkName)).append(" ")
                                     .append("FOREIGN KEY (").append(sqlGenerator.escape(newName)).append(") ").append(REFERENCES_CLAUSE)
@@ -1197,7 +1206,7 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
         });
     }
 
-    private static boolean isUserInsertable(@NotNull EntityTables entityTable, @NotNull ResultsetColumnHeaderData columnHeader) {
+    private static boolean isUserInsertable(@NonNull EntityTables entityTable, @NonNull ResultsetColumnHeaderData columnHeader) {
         String columnName = columnHeader.getColumnName();
         return !columnHeader.getIsColumnPrimaryKey() && !CREATEDAT_FIELD_NAME.equals(columnName) && !UPDATEDAT_FIELD_NAME.equals(columnName)
                 && !entityTable.getForeignKeyColumnNameOnDatatable().equals(columnName);
@@ -1296,7 +1305,7 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
                 .with(changes).build();
     }
 
-    private static boolean isUserUpdatable(@NotNull EntityTables entityTable, @NotNull ResultsetColumnHeaderData columnHeader) {
+    private static boolean isUserUpdatable(@NonNull EntityTables entityTable, @NonNull ResultsetColumnHeaderData columnHeader) {
         return isUserInsertable(entityTable, columnHeader);
     }
 
@@ -1367,7 +1376,7 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
 
     // --- DbUtils ---
 
-    @NotNull
+    @NonNull
     private String mapApiTypeToDbType(String apiType, Integer length) {
         if (StringUtils.isEmpty(apiType)) {
             return "";
@@ -1378,6 +1387,8 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
             return jdbcType.formatSql(dialect, 19, 6); // TODO: parameter length is not used
         } else if (apiType.equalsIgnoreCase(API_FIELD_TYPE_DROPDOWN)) {
             return jdbcType.formatSql(dialect, 11); // TODO: parameter length is not used
+        } else if (apiType.equalsIgnoreCase(API_FIELD_TYPE_DATETIME) || apiType.equalsIgnoreCase(API_FIELD_TYPE_TIMESTAMP)) {
+            return jdbcType.formatSql(dialect, 6);
         }
         return jdbcType.formatSql(dialect, length);
     }
@@ -1386,6 +1397,13 @@ public class DatatableWriteServiceImpl implements DatatableWriteService {
         final String sql = "select count(*) from " + sqlGenerator.escape(datatableName);
         Integer count = this.jdbcTemplate.queryForObject(sql, Integer.class); // NOSONAR
         return count == null ? 0 : count;
+    }
+
+    private boolean hasNonNullValues(final String datatableName, final String columnName) {
+        final String sql = "select count(*) from " + sqlGenerator.escape(datatableName) + " where " + sqlGenerator.escape(columnName)
+                + " IS NOT NULL";
+        Integer count = this.jdbcTemplate.queryForObject(sql, Integer.class); // NOSONAR
+        return count != null && count > 0;
     }
 
     private static boolean isTechnicalParam(String param) {
