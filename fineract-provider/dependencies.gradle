@@ -182,6 +182,9 @@ dependencies {
         exclude group: 'xml-apis'
     }
 
+    implementation 'io.sentry:sentry-spring-boot-starter-jakarta:7.3.0'
+    implementation 'io.sentry:sentry-async-profiler:8.35.0'
+
     runtimeOnly('org.glassfish.jaxb:jaxb-runtime') {
         exclude group: 'com.sun.activation'
     }

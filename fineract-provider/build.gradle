@@ -16,8 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+plugins {
+  id "io.sentry.jvm.gradle" version "6.1.0"
+}
+
 description = 'Fineract Provider'
 
+sentry {
+  includeSourceContext = true
+  org = "reli"
+  projectName = "reli-fineract"
+}
 apply plugin: 'org.zeroturnaround.gradle.jrebel'
 apply plugin: 'java'
 apply plugin: 'eclipse'
