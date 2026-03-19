@@ -48,11 +48,14 @@ COPY fineract-progressive-loan-embeddable-schedule-generator fineract-progressiv
 COPY custom custom
 
 # Set Gradle options - Sequential build with Serial GC to minimize memory overhead
-# We leave ~4GB for the host/container overhead
-ENV GRADLE_OPTS="-Xmx8g -Xms512m -XX:+UseSerialGC -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.workers.max=1 -Dorg.gradle.internal.http.socketTimeout=60000 -Dorg.gradle.internal.http.connectionTimeout=60000"
+# Lowered to 4g to prevent OOM on smaller Ubuntu hosts
+ENV GRADLE_OPTS="-Xmx4g -Xms512m -XX:+UseSerialGC -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.workers.max=1 -Dorg.gradle.internal.http.socketTimeout=60000 -Dorg.gradle.internal.http.connectionTimeout=60000"
 
-# Forcefully override the 12G heap in gradle.properties to match our container limit
-RUN sed -i 's/-Xmx12g/-Xmx8g/g' gradle.properties
+# Forcefully override the heap in gradle.properties to match our container limit
+# Also strictly disable parallel/daemon/caching to prevent memory spikes
+RUN sed -i 's/-Xmx[0-9]*g/-Xmx4g/g' gradle.properties && \
+    sed -i 's/org.gradle.parallel=true/org.gradle.parallel=false/g' gradle.properties && \
+    echo "org.gradle.daemon=false" >> gradle.properties
 
 # Build the application - strictly skip tests and checks
 RUN ./gradlew :fineract-provider:bootJar \
